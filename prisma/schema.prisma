@@ -1,0 +1,115 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  OWNER
+  ACCOUNTANT
+  SECRETARY
+}
+
+model User {
+  id            String   @id @default(cuid())
+  username      String   @unique
+  email         String   @unique
+  passwordHash  String
+  role          UserRole
+  panicPinHash  String?  // Only for OWNER role
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  auditLogs     AuditLog[]
+}
+
+model Patient {
+  id            String   @id @default(cuid())
+
+  // Patient metadata and identifiers
+  date           DateTime?
+  patientNameEncrypted String?
+  countryCodeEncrypted String?
+  phoneEncrypted     String?
+  addressEncrypted   String?
+
+  // Financial fields stored as numeric values
+  packageAmount  Decimal?
+  cashTotal      Decimal?
+  bankAmount     Decimal?
+  balanceAmount  Decimal?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  cashEntries    CashEntry[]
+  bankEntries    BankEntry[]
+
+  @@index([createdAt])
+}
+
+model CashEntry {
+  id          String   @id @default(cuid())
+  patientId   String
+  patient     Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  entryDate   DateTime
+  amount      Decimal
+  createdAt   DateTime @default(now())
+
+  @@index([patientId])
+  @@index([entryDate])
+}
+
+model BankEntry {
+  id          String   @id @default(cuid())
+  patientId   String
+  patient     Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  entryDate   DateTime
+  amount      Decimal
+  createdAt   DateTime @default(now())
+
+  @@index([patientId])
+  @@index([entryDate])
+}
+
+model AuditLog {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  action        String   // LOGIN, CREATE, UPDATE, DELETE, BACKUP, PANIC_WIPE
+  resourceType  String?  // PATIENT, SYSTEM
+  resourceId    String?
+  ipAddress     String?
+  details       String?  // JSON stringified details
+  timestamp     DateTime @default(now())
+
+  @@index([userId])
+  @@index([timestamp])
+  @@index([action])
+}
+
+model Backup {
+  id            String   @id @default(cuid())
+  fileName      String
+  encryptedData String   // Base64 encoded encrypted backup
+  type          String   // MONTHLY or PANIC_WIPE
+  createdAt     DateTime @default(now())
+  emailSent     Boolean  @default(false)
+  emailSentAt   DateTime?
+  notes         String?  // Additional notes
+
+  @@index([type])
+  @@index([createdAt])
+}
+
+model SystemState {
+  id             String   @id @default(cuid())
+  forcedLogoutAt DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
