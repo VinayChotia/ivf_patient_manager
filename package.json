@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "ts-node src/index.ts",
     "build": "npm run prisma:generate && tsc",
-    "start": "npx prisma generate && node dist/index.js",
+    "start": "node node_modules/prisma/build/index.js generate && node dist/index.js",
+    "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
