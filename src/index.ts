@@ -2,6 +2,7 @@
 import express, { Express, Request, Response, NextFunction } from 'express';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
+import path from 'path'; // Imported to handle file routing cleanly
 import { initializeEncryption } from './utils/encryption';
 import { initializeScheduledJobs } from './services/scheduledJobsService';
 import { retryFailedBackups } from './services/emailService';
@@ -9,10 +10,18 @@ import authRoutes from './routes/authRoutes';
 import patientRoutes from './routes/patientRoutes';
 import panicWipeRoutes from './routes/panicWipeRoutes';
 import auditRoutes from './routes/auditRoutes';
+import userRoutes from './routes/userRoutes';
 import { PrismaClient } from '@prisma/client';
 
-// Load environment variables
-dotenv.config();
+// Determine which environment we are running in (defaults to 'development')
+const environment = process.env.NODE_ENV || 'development';
+
+// Dynamically load the specific .env file from the root folder
+dotenv.config({
+  path: path.resolve(process.cwd(), `.env.${environment}`)
+});
+
+console.log(`📡 Loaded configuration from: .env.${environment}`);
 
 const app: Express = express();
 const prisma = new PrismaClient();
@@ -52,6 +61,7 @@ try {
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/patients', patientRoutes);
+app.use('/api/users', userRoutes);
 app.use('/api/panic-wipe', panicWipeRoutes);
 app.use('/api/audit', auditRoutes);
 
