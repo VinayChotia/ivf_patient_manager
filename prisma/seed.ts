@@ -4,74 +4,72 @@ import bcryptjs from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
+function generateRandomPassword(length: number = 8): string {
+  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#%^&*';
+  let password = '';
+  for (let i = 0; i < length; i += 1) {
+    password += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return password;
+}
+
 async function main() {
   try {
-    // Hash passwords
-    const ownerPasswordHash = await bcryptjs.hash('owner123', 10);
-    const owner2PasswordHash = await bcryptjs.hash('owner543', 10);
-    const accountantPasswordHash = await bcryptjs.hash('accountant123', 10);
-    const secretaryPasswordHash = await bcryptjs.hash('secretary123', 10);
-
     // Hash the panic PIN (6 digits) - default: 123456
     const panicPinHash = await bcryptjs.hash('123456', 10);
 
-    // ✅ upsert — safe to run on every deploy, won't crash if users already exist
-    const owner = await prisma.user.upsert({
-      where: { username: 'rakesh' },
-      update: {},   // don't overwrite anything if already exists
-      create: {
-        username: 'rakesh',
-        email: 'owner@example.com',
-        passwordHash: ownerPasswordHash,
-        role: 'OWNER' as UserRole,
-        panicPinHash: panicPinHash,
-      },
-    });
-    console.log('Upserted OWNER user:', owner.username);
+    const createdUsers: { username: string; password: string; role: string }[] = [];
+    const existingUsers: { username: string; role: string }[] = [];
 
-    const owner2 = await prisma.user.upsert({
-      where: { username: 'owner2' },
-      update: {},
-      create: {
-        username: 'owner2',
-        email: 'owner2@example.com',
-        passwordHash: owner2PasswordHash,
-        role: 'OWNER' as UserRole,
-        panicPinHash: panicPinHash,
-      },
-    });
-    console.log('Upserted OWNER user:', owner2.username);
+    const ensureUser = async (username: string, email: string, role: 'OWNER' | 'ACCOUNTANT' | 'SECRETARY') => {
+      const existing = await prisma.user.findUnique({ where: { username } });
+      if (existing) {
+        console.log(`  ℹ️  User already exists: ${username} (${role})`);
+        existingUsers.push({ username, role });
+        return;
+      }
 
-    const accountant = await prisma.user.upsert({
-      where: { username: 'accountant' },
-      update: {},
-      create: {
-        username: 'accountant',
-        email: 'accountant@example.com',
-        passwordHash: accountantPasswordHash,
-        role: 'ACCOUNTANT' as UserRole,
-      },
-    });
-    console.log('Upserted ACCOUNTANT user:', accountant.username);
+      const tempPassword = generateRandomPassword(8);
+      const passwordHash = await bcryptjs.hash(tempPassword, 10);
 
-    const secretary = await prisma.user.upsert({
-      where: { username: 'secretary' },
-      update: {},
-      create: {
-        username: 'secretary',
-        email: 'secretary@example.com',
-        passwordHash: secretaryPasswordHash,
-        role: 'SECRETARY' as UserRole,
-      },
-    });
-    console.log('Upserted SECRETARY user:', secretary.username);
+      const created = await prisma.user.create({
+        data: {
+          username,
+          email,
+          passwordHash,
+          role,
+          panicPinHash: role === 'OWNER' ? panicPinHash : undefined,
+          mustChangePassword: true,
+        },
+      });
 
-    console.log('\nSeeding completed successfully!');
-    console.log('Test credentials:');
-    console.log('  Owner:      rakesh / owner123');
-    console.log('  Owner2:     owner2 / owner543');
-    console.log('  Accountant: accountant / accountant123');
-    console.log('  Secretary:  secretary / secretary123');
+      console.log(`  ✓ Created ${role} user: ${created.username}`);
+      console.log(`    Temporary password: ${tempPassword}`);
+      createdUsers.push({ username: created.username, password: tempPassword, role });
+    };
+
+    console.log('\n🌱 Seeding users...');
+    await ensureUser('rakesh', 'owner@example.com', 'OWNER');
+    await ensureUser('owner2', 'owner2@example.com', 'OWNER');
+    await ensureUser('accountant', 'accountant@example.com', 'ACCOUNTANT');
+    await ensureUser('secretary', 'secretary@example.com', 'SECRETARY');
+
+    console.log('\n✅ Seeding completed successfully!');
+    
+    if (createdUsers.length > 0) {
+      console.log('\n📋 New users created. Share these credentials securely:');
+      createdUsers.forEach(user => {
+        console.log(`   ${user.username}: ${user.password} (${user.role})`);
+      });
+      console.log('\n⚠️  Users MUST change password on first login.');
+    }
+    
+    if (existingUsers.length > 0) {
+      console.log('\n📌 Existing users (manage via staff management UI):');
+      existingUsers.forEach(user => {
+        console.log(`   ${user.username} (${user.role})`);
+      });
+    }
   } catch (error) {
     console.error('Seeding error:', error);
     throw error;
