@@ -84,6 +84,31 @@ export async function sendBackupEmail(
   }
 }
 
+export async function sendVerificationCodeEmail(to: string, verificationCode: string): Promise<boolean> {
+  try {
+    const transport = initializeEmailService();
+
+    const mailOptions = {
+      from: process.env.SMTP_USER || 'noreply@example.com',
+      to,
+      subject: 'Your verification code',
+      text: `Your backup email verification code is: ${verificationCode}`,
+      html: `
+        <p>Your backup email verification code is:</p>
+        <p><strong>${verificationCode}</strong></p>
+        <p>Enter this code in the app to verify your backup email.</p>
+      `
+    };
+
+    const info = await transport.sendMail(mailOptions);
+    console.log('✓ Verification email sent to', to, 'messageId:', info.messageId);
+    return true;
+  } catch (error) {
+    console.error('Error sending verification email:', error);
+    return false;
+  }
+}
+
 /**
  * Generate encrypted backup file content
  */
